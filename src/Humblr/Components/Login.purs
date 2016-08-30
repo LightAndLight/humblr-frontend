@@ -1,5 +1,6 @@
 module Humblr.Components.Login (
-    LoginQuery
+    LoginQuery(..)
+    , LoginState
     , initialLoginState
     , loginComponent
 ) where
@@ -22,7 +23,6 @@ import Halogen
 import Halogen.HTML.Indexed as H
 import Halogen.HTML.Events.Indexed as E
 import Halogen.HTML.Properties.Indexed
-import Halogen.Util (awaitBody, runHalogenAff)
 import Network.HTTP.Affjax (AJAX, post)
 import Web.Storage
 
@@ -52,6 +52,7 @@ type LoginState = { username :: String, password :: String, message :: String, l
 data LoginQuery a = SetUsername String a
                   | SetPassword String a
                   | Login String String a
+                  | IsLoggedIn (Boolean -> a)
                   | Logout a
 
 loginComponent :: forall e. Component LoginState LoginQuery (Aff (AppEffects e))
@@ -72,8 +73,8 @@ loginComponent = component { render, eval }
             ]
     
     eval :: forall eff. LoginQuery ~> ComponentDSL LoginState LoginQuery (Aff (AppEffects eff))
-    eval (SetUsername username' next) = modify (_ { username = username' }) $> next
-    eval (SetPassword password' next) = modify (_ { password = password' }) $> next
+    eval (SetUsername username' next) = modify (_ { username = username', message = "" }) $> next
+    eval (SetPassword password' next) = modify (_ { password = password', message = "" }) $> next
     eval (Login username password next) = do
         res <- fromAff (doLogin $ LoginUser { username: username, password: password })
         case res of
@@ -82,8 +83,11 @@ loginComponent = component { render, eval }
                 res <- fromEff (saveSession false token)
                 case res of
                     Left err -> modify (_ { message = message err })
-                    Right _ -> modify (_ { loggedIn = true })
+                    Right _ -> modify (_ { username = "", password = "", message = "", loggedIn = true })
         pure next
+    eval (IsLoggedIn next) = do
+        isLoggedIn <- gets _.loggedIn
+        pure $ next isLoggedIn
     eval (Logout next) = do
         fromEff doLogout
         modify (_ { loggedIn = false })
