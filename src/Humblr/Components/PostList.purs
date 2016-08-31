@@ -1,15 +1,16 @@
 module Humblr.Components.PostList (
-    Post
+    Post(..)
     , PostListState
     , PostListQuery
     , PostListState'
-    , PostListQuery'
+    , PostListQuery'(..)
     , PostSlot
     , initialPostListState
     , postListComponent
 ) where
 
 import Prelude
+import Data.Argonaut.Decode ((.?), class DecodeJson, decodeJson)
 import Data.Array (filter)
 import Data.Functor.Coproduct (Coproduct)
 import Data.Generic (gEq, gCompare)
@@ -21,7 +22,21 @@ import Halogen.HTML.Events.Indexed as E
 
 import Humblr.Components.Post
 
-type Post = { id :: Int, title :: String, body :: String, author :: String }
+newtype Post = Post { id :: Int, title :: String, body :: String, author :: String }
+
+instance decodeJsonPost :: DecodeJson Post where
+    decodeJson json = do
+        obj <- decodeJson json
+        pid <- obj .? "id"
+        author <- obj .? "author"
+        title <- obj .? "title"
+        body <- obj .? "body"
+        pure $ Post {
+            id: pid
+            , author: author
+            , title: title
+            , body: body
+            }
 
 type PostListState' = { posts :: Array Post }
 
@@ -43,7 +58,7 @@ postListComponent = parentComponent $ { render: render, eval: eval, peek: Just p
     renderPost :: forall f.
                   Post
                -> ParentHTML PostState PostListQuery' PostQuery g PostSlot
-    renderPost post = H.slot (PostSlot post.id) \_ -> {
+    renderPost (Post post) = H.slot (PostSlot post.id) \_ -> {
         component: postComponent
         , initialState: initialPostState post.id post.title post.body post.author
         }
@@ -61,7 +76,7 @@ postListComponent = parentComponent $ { render: render, eval: eval, peek: Just p
         pure next
 
     removePost :: PostSlot -> PostListState' -> PostListState'
-    removePost (PostSlot pid) state = state { posts = filter (\p -> p.id /= pid) state.posts }
+    removePost (PostSlot pid) state = state { posts = filter (\(Post p) -> p.id /= pid) state.posts }
 
     peek :: forall f x.
             ChildF PostSlot PostQuery x

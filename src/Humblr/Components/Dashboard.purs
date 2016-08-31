@@ -102,6 +102,12 @@ dashboardComponent = parentComponent $ { render: render, eval: eval, peek: Just 
                         case res of
                             Right (UserProfile me) -> modify (_ { username = Just me.username })
                             Left err -> modify (_ { err = Just err })
+                        res <- fromAff $ getPosts token'
+                        case res of
+                            Right posts -> do
+                                query' cpPostList unit $ action (Coproduct <<< Left <<< Load posts)
+                                pure unit
+                            Left err -> modify (_ { err = Just err })
         Logout _ -> modify \_ -> initialDashboardState
         _ -> pure unit
     peek _ = pure unit
@@ -110,14 +116,6 @@ getToken :: forall e. Eff (storage :: STORAGE | e) (Maybe String)
 getToken = do
     s <- session
     getItem authCookieName s
-
-data UserProfile = UserProfile { username :: String }
-
-instance decodeJsonUserProfile :: DecodeJson UserProfile where
-    decodeJson json = do
-        obj <- decodeJson json
-        username <- obj .? "username"
-        pure $ UserProfile { username: username }
 
 getT :: forall e a. Respondable a => String -> URL -> Affjax e a
 getT token url = affjax defaultRequest {
@@ -132,7 +130,20 @@ postT token url content = affjax defaultRequest {
     , headers = RequestHeader "auth" token : defaultRequest.headers
     , url = url }
 
+data UserProfile = UserProfile { username :: String }
+
+instance decodeJsonUserProfile :: DecodeJson UserProfile where
+    decodeJson json = do
+        obj <- decodeJson json
+        username <- obj .? "username"
+        pure $ UserProfile { username: username }
+
 getMe :: forall e. String -> Aff (ajax :: AJAX | e) (Either String UserProfile)
 getMe token = do
     res <- getT token "/me"
+    pure $ decodeJson res.response
+
+getPosts :: forall e. String -> Aff (ajax :: AJAX | e) (Either String (Array Post))
+getPosts token = do
+    res <- getT token "/my/posts"
     pure $ decodeJson res.response
