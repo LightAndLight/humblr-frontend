@@ -103,9 +103,10 @@ dashboardComponent = parentComponent $ { render: render, eval: eval, peek: Just 
                             Right (UserProfile me) -> modify (_ { username = Just me.username })
                             Left err -> modify (_ { err = Just err })
                         res <- fromAff $ getPosts token'
+                        username <- gets _.username
                         case res of
                             Right posts -> do
-                                query' cpPostList unit $ action (Coproduct <<< Left <<< Load posts)
+                                query' cpPostList unit $ action (Coproduct <<< Left <<< Load username posts)
                                 pure unit
                             Left err -> modify (_ { err = Just err })
         Logout _ -> modify \_ -> initialDashboardState

@@ -23,13 +23,13 @@ type PostState = {
     , markedForDelete :: Boolean
     }
 
-initialPostState :: Int -> String -> String -> String -> PostState
-initialPostState pid title body author = {
+initialPostState :: Int -> String -> String -> String -> Boolean -> PostState
+initialPostState pid title body author editable = {
     id: pid
     , title: title
     , body: body
     , author: author
-    , editable: false
+    , editable: editable
     , editing: false
     , markedForDelete: false
     }

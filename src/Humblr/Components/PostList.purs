@@ -38,12 +38,12 @@ instance decodeJsonPost :: DecodeJson Post where
             , body: body
             }
 
-type PostListState' = { posts :: Array Post }
+type PostListState' = { username :: Maybe String, posts :: Array Post }
 
 initialPostListState :: PostListState'
-initialPostListState = { posts: [] }
+initialPostListState = { username: Nothing, posts: [] }
 
-data PostListQuery' a = Load (Array Post) a
+data PostListQuery' a = Load (Maybe String) (Array Post) a
 
 newtype PostSlot = PostSlot Int
 derive instance eqPostSlot :: Eq PostSlot
@@ -55,24 +55,29 @@ type PostListQuery = Coproduct PostListQuery' (ChildF PostSlot PostQuery)
 postListComponent :: forall g. Functor g => Component (PostListState g) PostListQuery g
 postListComponent = parentComponent $ { render: render, eval: eval, peek: Just peek }
   where
+    isAuthor :: Maybe String -> String -> Boolean
+    isAuthor Nothing _ = false
+    isAuthor (Just username) username' = username == username'
+
     renderPost :: forall f.
-                  Post
+                  Maybe String
+               -> Post
                -> ParentHTML PostState PostListQuery' PostQuery g PostSlot
-    renderPost (Post post) = H.slot (PostSlot post.id) \_ -> {
+    renderPost username (Post post) = H.slot (PostSlot post.id) \_ -> {
         component: postComponent
-        , initialState: initialPostState post.id post.title post.body post.author
+        , initialState: initialPostState post.id post.title post.body post.author (isAuthor username post.author)
         }
     
     render :: forall f.
               PostListState'
            -> ParentHTML PostState PostListQuery' PostQuery g PostSlot
-    render state = H.div_ $ map renderPost state.posts
+    render state = H.div_ $ map (renderPost state.username) state.posts
 
     eval :: forall f.
             PostListQuery'
          ~> ParentDSL PostListState' PostState PostListQuery' PostQuery g PostSlot
-    eval (Load posts next) = do
-        modify (_ { posts = posts }) 
+    eval (Load username posts next) = do
+        modify (_ { username = username, posts = posts }) 
         pure next
 
     removePost :: PostSlot -> PostListState' -> PostListState'
