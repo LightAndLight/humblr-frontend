@@ -109,7 +109,9 @@ dashboardComponent = parentComponent $ { render: render, eval: eval, peek: Just 
                                 query' cpPostList unit $ action (Coproduct <<< Left <<< Load username posts)
                                 pure unit
                             Left err -> modify (_ { err = Just err })
-        Logout _ -> modify \_ -> initialDashboardState
+        Logout _ -> do
+            query' cpPostList unit $ action (Coproduct <<< Left <<< Clear)
+            modify \_ -> initialDashboardState
         _ -> pure unit
     peek _ = pure unit
 

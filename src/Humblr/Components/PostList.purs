@@ -44,6 +44,7 @@ initialPostListState :: PostListState'
 initialPostListState = { username: Nothing, posts: [] }
 
 data PostListQuery' a = Load (Maybe String) (Array Post) a
+                      | Clear a
 
 newtype PostSlot = PostSlot Int
 derive instance eqPostSlot :: Eq PostSlot
@@ -78,6 +79,9 @@ postListComponent = parentComponent $ { render: render, eval: eval, peek: Just p
          ~> ParentDSL PostListState' PostState PostListQuery' PostQuery g PostSlot
     eval (Load username posts next) = do
         modify (_ { username = username, posts = posts }) 
+        pure next
+    eval (Clear next) = do
+        set initialPostListState
         pure next
 
     removePost :: PostSlot -> PostListState' -> PostListState'

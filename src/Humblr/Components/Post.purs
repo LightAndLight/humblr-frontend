@@ -49,15 +49,15 @@ postComponent = component { render, eval }
     renderDeleteConfirm state
       | state.markedForDelete = H.div_ [
             H.p_ [H.text "Confirm delete"]
-            , H.button [HP.value "Yes", E.onClick (E.input_ Delete)] []
-            , H.button [HP.value "No", E.onClick (E.input_ UnmarkDelete)] []
+            , H.button [E.onClick (E.input_ Delete)] [H.text "Yes"]
+            , H.button [E.onClick (E.input_ UnmarkDelete)] [H.text "No"]
             ]
-      | otherwise = H.button [HP.value "Delete", E.onClick (E.input_ MarkDelete)] []
+      | otherwise = H.button [E.onClick (E.input_ MarkDelete)] [H.text "Delete"]
 
     renderUpdatePost :: PostState -> Array (ComponentHTML PostQuery)
     renderUpdatePost state
       | state.editable = [
-            H.button [HP.value "Edit", E.onClick (E.input_ Edit)] []
+            H.button [E.onClick (E.input_ Edit)] [H.text "Edit"]
             , renderDeleteConfirm state
             ]
       | otherwise = []
@@ -65,9 +65,19 @@ postComponent = component { render, eval }
     render :: PostState -> ComponentHTML PostQuery
     render state
       | state.editing = H.div_ [
-            H.input [HP.inputType HP.InputText, HP.value state.title, E.onValueChange (E.input SetTitle)]
-            , H.textarea [HP.value state.body, E.onValueChange (E.input SetBody)]
-            , H.button [HP.value "Save", E.onClick (E.input_ Save)] []
+            H.div_ [
+                H.input [
+                    HP.inputType HP.InputText
+                    , HP.value state.title
+                    , E.onValueChange (E.input SetTitle)
+                    ]
+                ]
+            , H.div_ [
+                H.textarea [HP.value state.body, E.onValueChange (E.input SetBody)]
+                ]
+            , H.div_ [
+                H.button [E.onClick (E.input_ Save)] [H.text "Save"]
+                ]
             ]
       | otherwise = H.div_ $ [
             H.h1_ [H.text state.title]
