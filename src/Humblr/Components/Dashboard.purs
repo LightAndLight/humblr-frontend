@@ -14,19 +14,16 @@ import Data.Either (Either(..))
 import Data.Functor.Coproduct (Coproduct(..))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Generic (gEq, gCompare)
-import Data.HTTP.Method (Method(..))
 import Halogen
 import Halogen.Component.ChildPath (ChildPath, cpL, cpR, (:>))
 import Halogen.HTML.Indexed as H
-import Network.HTTP.Affjax (AJAX, URL, Affjax, affjax, defaultRequest)
-import Network.HTTP.Affjax.Request (class Requestable)
-import Network.HTTP.Affjax.Response (class Respondable)
-import Network.HTTP.RequestHeader (RequestHeader(..))
+import Network.HTTP.Affjax (AJAX)
 import Web.Storage (STORAGE, getItem, session)
 
 import Humblr.Components.Login
 import Humblr.Components.PostList
 import Humblr.Config
+import Humblr.Requests
 
 type DashboardState = {
     token :: Maybe String
@@ -120,19 +117,6 @@ getToken = do
     s <- session
     getItem authCookieName s
 
-getT :: forall e a. Respondable a => String -> URL -> Affjax e a
-getT token url = affjax defaultRequest {
-    method = Left GET
-    , headers = RequestHeader "auth" token : defaultRequest.headers
-    , url = url }
-
-postT :: forall e a b. (Requestable a, Respondable b) => String -> URL -> a -> Affjax e b
-postT token url content = affjax defaultRequest {
-    content = Just content
-    , method = Left POST
-    , headers = RequestHeader "auth" token : defaultRequest.headers
-    , url = url }
-
 data UserProfile = UserProfile { username :: String }
 
 instance decodeJsonUserProfile :: DecodeJson UserProfile where
@@ -143,10 +127,10 @@ instance decodeJsonUserProfile :: DecodeJson UserProfile where
 
 getMe :: forall e. String -> Aff (ajax :: AJAX | e) (Either String UserProfile)
 getMe token = do
-    res <- getT token "/me"
+    res <- getWithToken token "/me"
     pure $ decodeJson res.response
 
 getPosts :: forall e. String -> Aff (ajax :: AJAX | e) (Either String (Array Post))
 getPosts token = do
-    res <- getT token "/my/posts"
+    res <- getWithToken token "/my/posts"
     pure $ decodeJson res.response
