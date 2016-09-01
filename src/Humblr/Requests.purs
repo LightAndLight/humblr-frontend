@@ -18,6 +18,12 @@ getWithToken token url = affjax defaultRequest {
     , headers = RequestHeader "auth" token : defaultRequest.headers
     , url = url }
 
+deleteWithToken :: forall e a. Respondable a => String -> URL -> Affjax e a
+deleteWithToken token url = affjax defaultRequest {
+    method = Left DELETE
+    , headers = RequestHeader "auth" token : defaultRequest.headers
+    , url = url }
+
 postWithToken :: forall e a b. (Requestable a, Respondable b) => String -> URL -> a -> Affjax e b
 postWithToken token url content = affjax defaultRequest {
     content = Just content
@@ -25,3 +31,9 @@ postWithToken token url content = affjax defaultRequest {
     , headers = RequestHeader "auth" token : defaultRequest.headers
     , url = url }
 
+patchWithToken :: forall e a b. (Requestable a, Respondable b) => String -> URL -> a -> Affjax e b
+patchWithToken token url content = affjax defaultRequest {
+    content = Just content
+    , method = Left PATCH
+    , headers = RequestHeader "auth" token : defaultRequest.headers
+    , url = url }
