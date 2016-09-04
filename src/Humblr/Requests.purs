@@ -5,11 +5,12 @@ module Humblr.Requests (
     , patchWithToken
 ) where
 
+import Prelude (($))
 import Data.Array ((:))
 import Data.Either (Either(..))
 import Data.HTTP.Method (Method(..))
 import Data.Maybe (Maybe(..))
-import Network.HTTP.Affjax (Affjax, URL, affjax, defaultRequest)
+import Network.HTTP.Affjax (defaultRequest, Affjax, URL, affjax)
 import Network.HTTP.Affjax.Request (class Requestable)
 import Network.HTTP.Affjax.Response (class Respondable)
 import Network.HTTP.RequestHeader (RequestHeader(..))
