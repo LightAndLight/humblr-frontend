@@ -1,6 +1,8 @@
 module Humblr.Requests (
     getWithToken
     , postWithToken
+    , deleteWithToken
+    , patchWithToken
 ) where
 
 import Data.Array ((:))
