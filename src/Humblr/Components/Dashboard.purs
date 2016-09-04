@@ -171,4 +171,4 @@ deletePost :: forall e.
            -> PostSlot
            -> Aff (ajax :: AJAX | e) (AffjaxResponse Json)
 deletePost token (PostSlot pid) =
-  deleteWithToken (fromMaybe "" token) (apiURL <> "/post/" <> show pid <> "/delete")
+  deleteWithToken (fromMaybe "" token) (apiURL <> "/posts/" <> show pid <> "/delete")
