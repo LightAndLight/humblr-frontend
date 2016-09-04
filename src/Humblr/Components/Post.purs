@@ -7,12 +7,12 @@ module Humblr.Components.Post (
     , postComponent
 ) where
 
+import Prelude
+import Halogen (get, ComponentDSL, ComponentHTML, Component, component, gets, modify)
 import Halogen.HTML.Events.Indexed as E
 import Halogen.HTML.Indexed as H
 import Halogen.HTML.Properties.Indexed as HP
 import Data.Argonaut.Decode ((.?), decodeJson, class DecodeJson)
-import Halogen (ComponentDSL, ComponentHTML, Component, component, gets, modify)
-import Prelude (class Ord, class Eq, type (~>), pure, unit, when, bind, otherwise, ($), (<>))
 
 newtype Post = Post { id :: Int, title :: String, body :: String, author :: String }
 
@@ -62,6 +62,7 @@ data PostQuery a = Edit a
                  | MarkDelete a
                  | UnmarkDelete a
                  | Delete a
+                 | GetPost (Post -> a)
 
 postComponent :: forall e. Component PostState PostQuery e
 postComponent = component { render, eval }
@@ -129,9 +130,12 @@ postComponent = component { render, eval }
     eval (UnmarkDelete next) = do
         modify (_ { markedForDelete = false })
         pure next
-    eval (Delete next) = do
-        marked <- gets _.markedForDelete
-        when marked do
-            -- delete from DB
-            pure unit
-        pure next
+    eval (Delete next) = pure next
+    eval (GetPost f) = do
+      state <- get
+      pure <<< f $ Post {
+        id: state.id
+        , author: state.author
+        , title: state.title
+        , body: state.body
+        }
