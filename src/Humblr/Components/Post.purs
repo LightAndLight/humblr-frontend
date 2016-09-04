@@ -5,13 +5,12 @@ module Humblr.Components.Post (
     , postComponent
 ) where
 
-import Prelude
-import Halogen
+import Prelude (type (~>), pure, unit, when, bind, otherwise, ($), (<>))
+import Halogen (ComponentDSL, ComponentHTML, Component, component, gets, modify)
 import Halogen.HTML.Indexed as H
 import Halogen.HTML.Properties.Indexed as HP
 import Halogen.HTML.Events.Indexed as E
 
-import Humblr.Config
 
 type PostState = {
     id :: Int
