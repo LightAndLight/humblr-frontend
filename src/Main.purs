@@ -10,6 +10,6 @@ import Humblr.Config (AppEffects)
 
 main :: Eff (AppEffects ()) Unit
 main = runHalogenAff do
-    body <- awaitBody
-    driver <- runUI dashboardComponent (parentState initialDashboardState) body
-    pure unit
+  body <- awaitBody
+  driver <- runUI dashboardComponent (parentState initialDashboardState) body
+  pure unit
