@@ -9,11 +9,13 @@ import Prelude
 import Halogen
 import Humblr.Components.Login
 import Humblr.Components.Post
+import Humblr.Requests
 import Halogen.HTML.Indexed as H
 import Control.Monad.Aff (Aff)
 import Control.Monad.Eff (Eff)
-import Data.Argonaut.Core (Json)
+import Data.Argonaut.Core (Json, jsonEmptyObject)
 import Data.Argonaut.Decode ((.?), class DecodeJson, decodeJson)
+import Data.Argonaut.Encode (encodeJson, (~>), (:=), class EncodeJson)
 import Data.Array (filter, (:))
 import Data.Either (Either(..))
 import Data.Functor.Coproduct (Coproduct(..))
@@ -55,93 +57,109 @@ cpPost = cpR
 type State e = ParentState DashboardState ChildState DashboardQuery ChildQuery (Aff (AppEffects e)) ChildSlot
 type Query = Coproduct DashboardQuery (ChildF ChildSlot ChildQuery)
 
+renderUsername :: forall f.
+                  Maybe String
+               -> Array (ParentHTML ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot)
+renderUsername Nothing = []
+renderUsername (Just uname) = [H.p_ [H.text uname]]
+
+renderError :: forall f.
+                  Maybe String
+               -> Array (ParentHTML ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot)
+renderError Nothing = []
+renderError (Just err) = [H.p_ [H.text $ "Error: " <> err]]
+
+isAuthor :: Maybe String -> String -> Boolean
+isAuthor Nothing _ = false
+isAuthor (Just username) username' = username == username'
+
+renderPost :: forall f.
+              Maybe String
+           -> Post
+           -> ParentHTML ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot
+renderPost username (Post post) = H.slot' cpPost (PostSlot post.id) \_ -> {
+    component: postComponent
+    , initialState: initialPostState post.id post.title post.body post.author (isAuthor username post.author)
+    }
+
+render :: forall f.
+          DashboardState
+       -> ParentHTML ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot
+render state = H.div_ $ renderUsername state.username
+    <> renderError state.err
+    <> [H.slot' cpLogin unit \_ -> { component: loginComponent, initialState: initialLoginState }]
+    <> [H.div_ $ map (renderPost state.username) state.posts]
+
+eval :: forall f.
+        DashboardQuery
+     ~> ParentDSL DashboardState ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot
+eval (Posts next) = pure next
+
+removePost :: PostSlot -> DashboardState -> DashboardState
+removePost (PostSlot pid) state = state {
+  posts = filter (\(Post p) -> p.id /= pid) state.posts
+  }
+
+replacePost :: Post -> Post -> Post
+replacePost (Post newPost) (Post oldPost) =
+  Post $ if oldPost.id == newPost.id
+    then newPost
+    else oldPost
+
+peek :: forall x f.
+        ChildF ChildSlot ChildQuery x
+     -> ParentDSL DashboardState ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot Unit
+peek (ChildF (Left unit) (Coproduct (Left q))) = case q of
+  Login _ _ _ -> do
+    isLoggedIn <- query' cpLogin unit $ request IsLoggedIn
+    when (fromMaybe false isLoggedIn) do
+        state <- get 
+        case state.token of
+            Nothing -> do
+                token' <- fromEff getToken
+                modify (_ { token = token' })
+            Just token' -> pure unit
+
+        state' <- get
+        case state'.token of
+            Nothing -> modify (_ { err = Just "Token disappeared" })
+            Just token' -> do
+                res <- fromAff $ getMe token'
+                case res of
+                    Right (UserProfile me) -> modify (_ { username = Just me.username })
+                    Left err -> modify (_ { err = Just err })
+                res' <- fromAff $ getPosts token'
+                username <- gets _.username
+                case res' of
+                    Right posts -> modify (_ { posts = posts })
+                    Left err -> modify (_ { err = Just err })
+  Logout _ -> modify \_ -> initialDashboardState
+  _ -> pure unit
+
+peek (ChildF (Right slot) (Coproduct (Right q))) = case q of
+  Delete _ -> do
+      maybeToken <- gets _.token
+      response <- fromAff $ deletePost maybeToken slot
+      when
+        (response.status == StatusCode 200)
+        (modify $ removePost slot)
+  Save _ -> do
+    maybeToken <- gets _.token
+    maybePost <- query' cpPost slot $ request GetPost
+    case maybePost of
+      Nothing -> pure unit
+      Just post -> do
+        posts <- gets _.posts
+        response <- fromAff $ updatePost maybeToken post
+        when
+          (response.status == StatusCode 200)
+          (modify (_ { posts = map (replacePost post) posts }))
+  _ -> pure unit
+
+peek _ = pure unit
+
 dashboardComponent :: forall e. Component (State e) Query (Aff (AppEffects e))
 dashboardComponent = parentComponent $ { render: render, eval: eval, peek: Just peek }
-  where
-    renderUsername :: forall f.
-                      Maybe String
-                   -> Array (ParentHTML ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot)
-    renderUsername Nothing = []
-    renderUsername (Just uname) = [H.p_ [H.text uname]]
-
-    renderError :: forall f.
-                      Maybe String
-                   -> Array (ParentHTML ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot)
-    renderError Nothing = []
-    renderError (Just err) = [H.p_ [H.text $ "Error: " <> err]]
-
-    isAuthor :: Maybe String -> String -> Boolean
-    isAuthor Nothing _ = false
-    isAuthor (Just username) username' = username == username'
-
-    renderPost :: forall f.
-                  Maybe String
-               -> Post
-               -> ParentHTML ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot
-    renderPost username (Post post) = H.slot' cpPost (PostSlot post.id) \_ -> {
-        component: postComponent
-        , initialState: initialPostState post.id post.title post.body post.author (isAuthor username post.author)
-        }
-
-    render :: forall f.
-              DashboardState
-           -> ParentHTML ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot
-    render state = H.div_ $ renderUsername state.username
-        <> renderError state.err
-        <> [H.slot' cpLogin unit \_ -> { component: loginComponent, initialState: initialLoginState }]
-        <> [H.div_ $ map (renderPost state.username) state.posts]
-
-    eval :: forall f.
-            DashboardQuery
-         ~> ParentDSL DashboardState ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot
-    eval (Posts next) = pure next
-
-    removePost :: PostSlot -> DashboardState -> DashboardState
-    removePost (PostSlot pid) state = state {
-      posts = filter (\(Post p) -> p.id /= pid) state.posts
-      }
-
-
-    peek :: forall x f.
-            ChildF ChildSlot ChildQuery x
-         -> ParentDSL DashboardState ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot Unit
-    peek (ChildF (Left unit) (Coproduct (Left q))) = case q of
-      Login _ _ _ -> do
-        isLoggedIn <- query' cpLogin unit $ request IsLoggedIn
-        when (fromMaybe false isLoggedIn) do
-            state <- get 
-            case state.token of
-                Nothing -> do
-                    token' <- fromEff getToken
-                    modify (_ { token = token' })
-                Just token' -> pure unit
-
-            state' <- get
-            case state'.token of
-                Nothing -> modify (_ { err = Just "Token disappeared" })
-                Just token' -> do
-                    res <- fromAff $ getMe token'
-                    case res of
-                        Right (UserProfile me) -> modify (_ { username = Just me.username })
-                        Left err -> modify (_ { err = Just err })
-                    res' <- fromAff $ getPosts token'
-                    username <- gets _.username
-                    case res' of
-                        Right posts -> modify (_ { posts = posts })
-                        Left err -> modify (_ { err = Just err })
-      Logout _ -> modify \_ -> initialDashboardState
-      _ -> pure unit
-
-    peek (ChildF (Right slot) (Coproduct (Right q))) = case q of
-        Delete _ -> do
-            maybeToken <- gets _.token
-            response <- fromAff $ deletePost maybeToken slot
-            if (response.status == StatusCode 200)
-                then modify $ removePost slot
-                else pure unit
-        _ -> pure unit
-
-    peek _ = pure unit
 
 getToken :: forall e. Eff (storage :: STORAGE | e) (Maybe String)
 getToken = do
@@ -172,3 +190,20 @@ deletePost :: forall e.
            -> Aff (ajax :: AJAX | e) (AffjaxResponse Json)
 deletePost token (PostSlot pid) =
   deleteWithToken (fromMaybe "" token) (apiURL <> "/posts/" <> show pid <> "/delete")
+
+newtype UpdatePost = UpdatePost { title :: String, body :: String }
+
+instance encodeJsonUpdatePost :: EncodeJson UpdatePost where
+  encodeJson (UpdatePost post) =
+    "title" := post.title
+    ~> "body" := post.body
+    ~> jsonEmptyObject
+
+updatePost :: forall e.
+              Maybe String
+           -> Post
+           -> Aff (ajax :: AJAX | e) (AffjaxResponse Json)
+updatePost token (Post post) = patchWithToken
+  (fromMaybe "" token)
+  (apiURL <> "/posts/" <> show post.id <> "/update")
+  (encodeJson $ UpdatePost { title: post.title, body: post.body })
