@@ -37,10 +37,10 @@ type DashboardState
 initialDashboardState :: DashboardState
 initialDashboardState
   = { token: Nothing
-  , username: Nothing
-  , posts: []
-  , err: Nothing
-  }
+    , username: Nothing
+    , posts: []
+    , err: Nothing
+    }
 
 data DashboardQuery a = Posts a
 
