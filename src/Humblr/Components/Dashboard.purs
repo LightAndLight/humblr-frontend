@@ -218,10 +218,10 @@ deletePost token (PostSlot pid)
 newtype UpdatePost = UpdatePost { title :: String, body :: String }
 
 instance encodeJsonUpdatePost :: EncodeJson UpdatePost where
-  encodeJson (UpdatePost post) =
-    "title" := post.title
-    ~> "body" := post.body
-    ~> jsonEmptyObject
+  encodeJson (UpdatePost post)
+    = "title" := post.title
+   ~> "body" := post.body
+   ~> jsonEmptyObject
 
 updatePost :: forall e.
               Maybe String
