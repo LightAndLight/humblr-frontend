@@ -1,8 +1,8 @@
 module Humblr.Components.Dashboard (
-    DashboardState
-    , DashboardQuery
-    , initialDashboardState
-    , dashboardComponent
+  DashboardState
+  , DashboardQuery
+  , initialDashboardState
+  , dashboardComponent
 ) where
 
 import Prelude
@@ -27,16 +27,16 @@ import Network.HTTP.Affjax (AffjaxResponse, AJAX)
 import Network.HTTP.StatusCode (StatusCode(..))
 import Web.Storage (STORAGE, getItem, session)
 
-type DashboardState = {
-  token :: Maybe String
-  , username :: Maybe String
-  , posts :: Array Post
-  , err :: Maybe String
-  }
+type DashboardState
+  = { token :: Maybe String
+    , username :: Maybe String
+    , posts :: Array Post
+    , err :: Maybe String
+    }
 
 initialDashboardState :: DashboardState
-initialDashboardState = {
-  token: Nothing
+initialDashboardState
+  = { token: Nothing
   , username: Nothing
   , posts: []
   , err: Nothing
