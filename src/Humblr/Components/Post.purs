@@ -1,16 +1,38 @@
 module Humblr.Components.Post (
-    PostState
+    Post(..)
+    , PostState
     , PostQuery(..)
+    , PostSlot(..)
     , initialPostState
     , postComponent
 ) where
 
-import Prelude (type (~>), pure, unit, when, bind, otherwise, ($), (<>))
-import Halogen (ComponentDSL, ComponentHTML, Component, component, gets, modify)
+import Halogen.HTML.Events.Indexed as E
 import Halogen.HTML.Indexed as H
 import Halogen.HTML.Properties.Indexed as HP
-import Halogen.HTML.Events.Indexed as E
+import Data.Argonaut.Decode ((.?), decodeJson, class DecodeJson)
+import Halogen (ComponentDSL, ComponentHTML, Component, component, gets, modify)
+import Prelude (class Ord, class Eq, type (~>), pure, unit, when, bind, otherwise, ($), (<>))
 
+newtype Post = Post { id :: Int, title :: String, body :: String, author :: String }
+
+instance decodeJsonPost :: DecodeJson Post where
+    decodeJson json = do
+        obj <- decodeJson json
+        pid <- obj .? "id"
+        author <- obj .? "author"
+        title <- obj .? "title"
+        body <- obj .? "body"
+        pure $ Post {
+            id: pid
+            , author: author
+            , title: title
+            , body: body
+            }
+
+newtype PostSlot = PostSlot Int
+derive instance eqPostSlot :: Eq PostSlot
+derive instance ordPostSlot :: Ord PostSlot
 
 type PostState = {
     id :: Int

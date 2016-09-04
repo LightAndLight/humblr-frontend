@@ -9,15 +9,14 @@ import Prelude
 import Halogen
 import Humblr.Components.Login
 import Humblr.Components.Post
-import Humblr.Components.PostList
 import Halogen.HTML.Indexed as H
 import Control.Monad.Aff (Aff)
 import Control.Monad.Eff (Eff)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode ((.?), class DecodeJson, decodeJson)
-import Data.Array ((:))
+import Data.Array (filter, (:))
 import Data.Either (Either(..))
-import Data.Functor.Coproduct (Coproduct(..), coproduct)
+import Data.Functor.Coproduct (Coproduct(..))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Halogen.Component.ChildPath (ChildPath, cpL, cpR, (:>))
 import Humblr.Config (AppEffects, authCookieName, apiURL)
@@ -29,25 +28,31 @@ import Web.Storage (STORAGE, getItem, session)
 type DashboardState = {
     token :: Maybe String
     , username :: Maybe String
+    , posts :: Array Post
     , err :: Maybe String
     }
 
 initialDashboardState :: DashboardState
-initialDashboardState = { token: Nothing, username: Nothing, err: Nothing }
+initialDashboardState = {
+  token: Nothing
+  , username: Nothing
+  , posts: []
+  , err: Nothing
+  }
 
 data DashboardQuery a = Posts a
 
-type ChildState e = Either LoginState (PostListState e)
-type ChildQuery = Coproduct LoginQuery PostListQuery
-type ChildSlot = Either Unit Unit
+type ChildState = Either LoginState PostState
+type ChildQuery = Coproduct LoginQuery PostQuery
+type ChildSlot = Either Unit PostSlot
 
-cpLogin :: forall e. ChildPath LoginState (ChildState e) LoginQuery ChildQuery Unit ChildSlot
+cpLogin :: ChildPath LoginState ChildState LoginQuery ChildQuery Unit ChildSlot
 cpLogin = cpL
 
-cpPostList :: forall e. ChildPath (PostListState e) (ChildState e) PostListQuery ChildQuery Unit ChildSlot
-cpPostList = cpR
+cpPost :: ChildPath PostState ChildState PostQuery ChildQuery PostSlot ChildSlot
+cpPost = cpR
 
-type State e = ParentState DashboardState (ChildState e) DashboardQuery ChildQuery (Aff (AppEffects e)) ChildSlot
+type State e = ParentState DashboardState ChildState DashboardQuery ChildQuery (Aff (AppEffects e)) ChildSlot
 type Query = Coproduct DashboardQuery (ChildF ChildSlot ChildQuery)
 
 dashboardComponent :: forall e. Component (State e) Query (Aff (AppEffects e))
@@ -55,33 +60,53 @@ dashboardComponent = parentComponent $ { render: render, eval: eval, peek: Just 
   where
     renderUsername :: forall f.
                       Maybe String
-                   -> Array (ParentHTML (ChildState f) DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot)
+                   -> Array (ParentHTML ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot)
     renderUsername Nothing = []
     renderUsername (Just uname) = [H.p_ [H.text uname]]
 
     renderError :: forall f.
                       Maybe String
-                   -> Array (ParentHTML (ChildState f) DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot)
+                   -> Array (ParentHTML ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot)
     renderError Nothing = []
     renderError (Just err) = [H.p_ [H.text $ "Error: " <> err]]
 
+    isAuthor :: Maybe String -> String -> Boolean
+    isAuthor Nothing _ = false
+    isAuthor (Just username) username' = username == username'
+
+    renderPost :: forall f.
+                  Maybe String
+               -> Post
+               -> ParentHTML ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot
+    renderPost username (Post post) = H.slot' cpPost (PostSlot post.id) \_ -> {
+        component: postComponent
+        , initialState: initialPostState post.id post.title post.body post.author (isAuthor username post.author)
+        }
+
     render :: forall f.
               DashboardState
-           -> ParentHTML (ChildState f) DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot
+           -> ParentHTML ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot
     render state = H.div_ $ renderUsername state.username
         <> renderError state.err
         <> [H.slot' cpLogin unit \_ -> { component: loginComponent, initialState: initialLoginState }]
-        <> [H.slot' cpPostList unit \_ -> { component: postListComponent, initialState: parentState initialPostListState }]
+        <> [H.div_ $ map (renderPost state.username) state.posts]
 
     eval :: forall f.
             DashboardQuery
-         ~> ParentDSL DashboardState (ChildState f) DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot
+         ~> ParentDSL DashboardState ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot
     eval (Posts next) = pure next
 
-    peekLogin :: forall f a.
-                 LoginQuery a
-              -> ParentDSL DashboardState (ChildState f) DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot Unit
-    peekLogin (Login _ _ _) = do
+    removePost :: PostSlot -> DashboardState -> DashboardState
+    removePost (PostSlot pid) state = state {
+      posts = filter (\(Post p) -> p.id /= pid) state.posts
+      }
+
+
+    peek :: forall x f.
+            ChildF ChildSlot ChildQuery x
+         -> ParentDSL DashboardState ChildState DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot Unit
+    peek (ChildF (Left unit) (Coproduct (Left q))) = case q of
+      Login _ _ _ -> do
         isLoggedIn <- query' cpLogin unit $ request IsLoggedIn
         when (fromMaybe false isLoggedIn) do
             state <- get 
@@ -102,38 +127,21 @@ dashboardComponent = parentComponent $ { render: render, eval: eval, peek: Just 
                     res' <- fromAff $ getPosts token'
                     username <- gets _.username
                     case res' of
-                        Right posts -> do
-                            query' cpPostList unit $ action (Coproduct <<< Left <<< Load username posts)
-                            pure unit
+                        Right posts -> modify (_ { posts = posts })
                         Left err -> modify (_ { err = Just err })
-    peekLogin (Logout _) = do
-        query' cpPostList unit $ action (Coproduct <<< Left <<< Clear)
-        modify \_ -> initialDashboardState
-    peekLogin _ = pure unit
+      Logout _ -> modify \_ -> initialDashboardState
+      _ -> pure unit
 
-    peekPost :: forall f x.
-                ChildF PostSlot PostQuery x
-             -> ParentDSL DashboardState (ChildState f) DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot Unit
-    peekPost (ChildF slot q) = case q of
+    peek (ChildF (Right slot) (Coproduct (Right q))) = case q of
         Delete _ -> do
             maybeToken <- gets _.token
             response <- fromAff $ deletePost maybeToken slot
             if (response.status == StatusCode 200)
-                then do
-                    query' cpPostList unit (action (Coproduct <<< Left <<< RemovePost slot))
-                    pure unit
+                then modify $ removePost slot
                 else pure unit
         _ -> pure unit
 
-    peekPostList :: forall x f.
-                    PostListQuery x
-                 -> ParentDSL DashboardState (ChildState f) DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot Unit
-    peekPostList = coproduct (const $ pure unit) peekPost
-
-    peek :: forall x f.
-            ChildF ChildSlot ChildQuery x
-         -> ParentDSL DashboardState (ChildState f) DashboardQuery ChildQuery (Aff (AppEffects f)) ChildSlot Unit
-    peek (ChildF _ q) = coproduct peekLogin peekPostList q
+    peek _ = pure unit
 
 getToken :: forall e. Eff (storage :: STORAGE | e) (Maybe String)
 getToken = do
