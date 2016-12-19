@@ -7,14 +7,14 @@
     "output"
   ],
   "dependencies": {
-    "purescript-console": "^1.0.0",
-    "purescript-halogen": "^0.11.0",
-    "purescript-argonaut-codecs": "^1.1.0",
-    "purescript-web-storage": "^1.0.0",
-    "purescript-affjax": "^2.0.0",
-    "purescript-generics": "^1.0.1"
+    "purescript-halogen": "^0.12.0",
+    "purescript-aff": "^2.0.2",
+    "purescript-arrays": "^3.1.0",
+    "purescript-affjax": "^3.0.2",
+    "purescript-web-storage": "https://github.com/lightandlight/purescript-web-storage.git#^1.0.1",
+    "purescript-argonaut-codecs": "^2.0.0"
   },
   "devDependencies": {
-    "purescript-psci-support": "^1.0.0"
+    "purescript-psci-support": "^2.0.0"
   }
 }

@@ -1,31 +1,31 @@
-module Humblr.Components.Dashboard (
-  DashboardState
+module Humblr.Components.Dashboard
+  ( DashboardState
   , DashboardQuery
   , initialDashboardState
   , dashboardComponent
-) where
+  ) where
 
-import Prelude
-import Halogen
-import Humblr.Components.Login
-import Humblr.Components.Post
-import Humblr.Requests
+import Prelude (type (~>), Unit, bind, map, pure, show, unit, when, ($), (/=), (<>), (==), (>>=))
+import Halogen (ChildF(..), Component, ParentDSL, ParentHTML, ParentState, fromAff, fromEff, get, gets, modify, parentComponent, query', request)
 import Halogen.HTML.Indexed as H
 import Control.Monad.Aff (Aff)
 import Control.Monad.Eff (Eff)
 import Data.Argonaut.Core (Json, jsonEmptyObject)
 import Data.Argonaut.Decode ((.?), class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (encodeJson, (~>), (:=), class EncodeJson)
-import Data.Array (filter, (:))
+import Data.Array (filter)
 import Data.Either (Either(..))
 import Data.Functor.Coproduct (Coproduct(..))
 import Data.Maybe (Maybe(..), fromMaybe)
-import Halogen.Component.ChildPath (ChildPath, cpL, cpR, (:>))
-import Humblr.Config (AppEffects, authCookieName, apiURL)
-import Humblr.Requests (getWithToken, deleteWithToken)
+import Halogen.Component.ChildPath (ChildPath, cpL, cpR)
 import Network.HTTP.Affjax (AffjaxResponse, AJAX)
 import Network.HTTP.StatusCode (StatusCode(..))
 import Web.Storage (STORAGE, getItem, session)
+
+import Humblr.Components.Login (LoginQuery(..), LoginState, initialLoginState, loginComponent)
+import Humblr.Components.Post (Post(..), PostQuery(..), PostSlot(..), PostState, initialPostState, postComponent)
+import Humblr.Requests (deleteWithToken, getWithToken, patchWithToken)
+import Humblr.Config (AppEffects, apiURL, authCookieName)
 
 type DashboardState
   = { token :: Maybe String
@@ -134,7 +134,7 @@ peek (ChildF (Left unit) (Coproduct (Left q)))
       Login _ _ _ -> do
         isLoggedIn <- query' cpLogin unit $ request IsLoggedIn
         when (fromMaybe false isLoggedIn) do
-          state <- get 
+          state <- get
           case state.token of
             Nothing -> do
               token' <- fromEff getToken
@@ -199,17 +199,12 @@ getMe token = do
   res <- getWithToken token "/me"
   pure $ decodeJson res.response
 
-getPosts :: forall e.
-            String
-         -> Aff (ajax :: AJAX | e) (Either String (Array Post))
+getPosts :: forall e. String -> Aff (ajax :: AJAX | e) (Either String (Array Post))
 getPosts token = do
   res <- getWithToken token "/my/posts"
   pure $ decodeJson res.response
 
-deletePost :: forall e.
-              Maybe String
-           -> PostSlot
-           -> Aff (ajax :: AJAX | e) (AffjaxResponse Json)
+deletePost :: forall e. Maybe String -> PostSlot -> Aff (ajax :: AJAX | e) (AffjaxResponse Json)
 deletePost token (PostSlot pid)
   = deleteWithToken
       (fromMaybe "" token)
@@ -223,10 +218,7 @@ instance encodeJsonUpdatePost :: EncodeJson UpdatePost where
    ~> "body" := post.body
    ~> jsonEmptyObject
 
-updatePost :: forall e.
-              Maybe String
-           -> Post
-           -> Aff (ajax :: AJAX | e) (AffjaxResponse Json)
+updatePost :: forall e. Maybe String -> Post -> Aff (ajax :: AJAX | e) (AffjaxResponse Json)
 updatePost token (Post post)
   = patchWithToken
       (fromMaybe "" token)

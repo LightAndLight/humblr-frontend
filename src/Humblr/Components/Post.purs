@@ -1,14 +1,14 @@
-module Humblr.Components.Post (
-  Post(..)
+module Humblr.Components.Post
+  ( Post(..)
   , PostState
   , PostQuery(..)
   , PostSlot(..)
   , initialPostState
   , postComponent
-) where
+  ) where
 
-import Prelude
-import Halogen
+import Prelude (class Eq, class Ord, type (~>), bind, otherwise, pure, when, ($), ($>), (<<<), (<>))
+import Halogen (Component, ComponentDSL, ComponentHTML, component, get, gets, modify)
 import Halogen.HTML.Events.Indexed as E
 import Halogen.HTML.Indexed as H
 import Halogen.HTML.Properties.Indexed as HP
@@ -82,7 +82,7 @@ renderUpdatePost state
 render :: PostState -> ComponentHTML PostQuery
 render state
   | state.editing
-    = H.div_ 
+    = H.div_
         [ H.div_
             [ H.input
                 [ HP.inputType HP.InputText

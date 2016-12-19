@@ -1,11 +1,10 @@
-module Humblr.Requests (
-  getWithToken
+module Humblr.Requests
+  ( getWithToken
   , postWithToken
   , deleteWithToken
   , patchWithToken
-) where
+  ) where
 
-import Prelude (($))
 import Data.Array ((:))
 import Data.Either (Either(..))
 import Data.HTTP.Method (Method(..))
@@ -31,13 +30,13 @@ deleteWithToken token url
       , url = url
       }
 
-postWithToken :: forall e a b.
-                (Requestable a, Respondable b) 
-              => String
-              -> URL
-              -> a
-              -> Affjax e b
-
+postWithToken
+  :: forall e a b.
+  (Requestable a, Respondable b)
+  => String
+  -> URL
+  -> a
+  -> Affjax e b
 postWithToken token url content
   = affjax defaultRequest
       { content = Just content
@@ -46,13 +45,13 @@ postWithToken token url content
       , url = url
       }
 
-patchWithToken :: forall e a b.
-                 (Requestable a, Respondable b)
-               => String
-               -> URL
-               -> a
-               -> Affjax e b
-
+patchWithToken
+  :: forall e a b.
+  (Requestable a, Respondable b)
+  => String
+  -> URL
+  -> a
+  -> Affjax e b
 patchWithToken token url content
   = affjax defaultRequest
       { content = Just content

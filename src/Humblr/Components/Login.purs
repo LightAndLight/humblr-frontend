@@ -1,11 +1,11 @@
-module Humblr.Components.Login (
-  LoginQuery(..)
+module Humblr.Components.Login
+  ( LoginQuery(..)
   , LoginState
   , initialLoginState
   , loginComponent
-) where
+  ) where
 
-import Prelude
+import Prelude (type (~>), Unit, bind, otherwise, pure, ($), ($>), (<<<), (<>), (>>=))
 import Control.Monad.Aff (Aff)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Exception (Error, try, message)
@@ -16,10 +16,10 @@ import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Argonaut.Encode.Combinators ((~>), (:=))
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
-import Halogen
+import Halogen (Component, ComponentDSL, ComponentHTML, component, fromAff, fromEff, gets, modify)
 import Halogen.HTML.Indexed as H
 import Halogen.HTML.Events.Indexed as E
-import Halogen.HTML.Properties.Indexed
+import Halogen.HTML.Properties.Indexed (ButtonType(..), InputType(..), buttonType, inputType, name, value)
 import Network.HTTP.Affjax (AJAX, post)
 import Web.Storage (STORAGE, removeItem, session, setItem)
 
@@ -59,7 +59,7 @@ data LoginQuery a
   | IsLoggedIn (Boolean -> a)
   | Logout a
 
-render :: LoginState -> ComponentHTML LoginQuery 
+render :: LoginState -> ComponentHTML LoginQuery
 render state
   | state.loggedIn
     = H.div_
@@ -149,4 +149,3 @@ doLogout = session >>= removeItem authCookieName
 
 initialLoginState :: LoginState
 initialLoginState = { username: "", password: "", message: "", loggedIn: false }
-
